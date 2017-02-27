@@ -133,6 +133,12 @@ def GenerateInventoyMOFContents(FeatureName, Instances, RunIntervalInSeconds, Ta
 def GenerateInventoyConfContents(FeatureName, Instances, RunIntervalInSeconds, Tag, Format, FilterType, Configuration):
     mof_file_path = inventoryMof_path + FeatureName + '.mof'
     conf_file_path = inventoryMof_path + FeatureName + '.conf'
+
+     configurations = ''
+     if Configuration is not None:
+         for configuration in Configuration:
+             configurations += '   ' + configuration + '\n'
+
     conf_file_contents = '#This is auto-generated file \n \
 <source> \n \
   type exec \n \
@@ -145,7 +151,7 @@ def GenerateInventoyConfContents(FeatureName, Instances, RunIntervalInSeconds, T
   type ' + FilterType + ' \n \
   # Force upload even if the data has not changed \n \
   force_send_run_interval 24h \n \
-  log_level warn \n \
+  log_level warn \n' + configurations + ' \
 </filter> \n'
     return conf_file_contents
 
