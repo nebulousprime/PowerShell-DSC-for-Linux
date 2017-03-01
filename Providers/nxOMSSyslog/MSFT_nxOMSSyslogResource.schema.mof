@@ -8,7 +8,7 @@ class MSFT_nxOMSSyslogSource
 [ClassVersion("3.0.0")] 
 class MSFT_nxOMSSyslogResource : OMI_BaseResource
 {
-    [key, EmbeddedInstance("MSFT_nxOMSSyslogSource") : ToSubclass ] string SyslogSource[];
-    [write] string WorkspaceID;
+    [key] string NameAndWorkspaceID;
+    [write, EmbeddedInstance("MSFT_nxOMSSyslogSource") : ToSubclass ] string SyslogSource[];
 };
  
