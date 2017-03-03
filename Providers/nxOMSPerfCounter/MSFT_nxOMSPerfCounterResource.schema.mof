@@ -8,10 +8,11 @@ class MSFT_nxOMSPerfCounterObject
     [write] string PerformanceCounter[];
 };
 
-[ClassVersion("1.1.0")]
+[ClassVersion("2.0.0")]
 class MSFT_nxOMSPerfCounterResource : OMI_BaseResource
 {   
     [key] string Name;
+    [key] string WorkspaceID;
     [write] uint16 HeartbeatIntervalSeconds;
     [write, EmbeddedInstance("MSFT_nxOMSPerfCounterObject") : ToSubclass] string PerfCounterObject[];
 };

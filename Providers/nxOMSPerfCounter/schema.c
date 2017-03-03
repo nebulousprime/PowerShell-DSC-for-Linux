@@ -1053,6 +1053,38 @@ static MI_CONST MI_PropertyDecl MSFT_nxOMSPerfCounterResource_Name_prop =
     NULL,
 };
 
+static MI_CONST MI_Boolean MSFT_nxOMSPerfCounterResource_WorkspaceID_Key_qual_value = 1;
+
+static MI_CONST MI_Qualifier MSFT_nxOMSPerfCounterResource_WorkspaceID_Key_qual =
+{
+    MI_T("Key"),
+    MI_BOOLEAN,
+    MI_FLAG_DISABLEOVERRIDE|MI_FLAG_TOSUBCLASS,
+    &MSFT_nxOMSPerfCounterResource_WorkspaceID_Key_qual_value
+};
+
+static MI_Qualifier MI_CONST* MI_CONST MSFT_nxOMSPerfCounterResource_WorkspaceID_quals[] =
+{
+    &MSFT_nxOMSPerfCounterResource_WorkspaceID_Key_qual,
+};
+
+/* property MSFT_nxOMSPerfCounterResource.WorkspaceID */
+static MI_CONST MI_PropertyDecl MSFT_nxOMSPerfCounterResource_WorkspaceID_prop =
+{
+    MI_FLAG_PROPERTY|MI_FLAG_KEY|MI_FLAG_READONLY, /* flags */
+    0x0077640B, /* code */
+    MI_T("WorkspaceID"), /* name */
+    MSFT_nxOMSPerfCounterResource_WorkspaceID_quals, /* qualifiers */
+    MI_COUNT(MSFT_nxOMSPerfCounterResource_WorkspaceID_quals), /* numQualifiers */
+    MI_STRING, /* type */
+    NULL, /* className */
+    0, /* subscript */
+    offsetof(MSFT_nxOMSPerfCounterResource, WorkspaceID), /* offset */
+    MI_T("MSFT_nxOMSPerfCounterResource"), /* origin */
+    MI_T("MSFT_nxOMSPerfCounterResource"), /* propagator */
+    NULL,
+};
+
 static MI_CONST MI_Boolean MSFT_nxOMSPerfCounterResource_HeartbeatIntervalSeconds_Write_qual_value = 1;
 
 static MI_CONST MI_Qualifier MSFT_nxOMSPerfCounterResource_HeartbeatIntervalSeconds_Write_qual =
@@ -1131,6 +1163,7 @@ static MI_CONST MI_PropertyDecl MSFT_nxOMSPerfCounterResource_PerfCounterObject_
 static MI_PropertyDecl MI_CONST* MI_CONST MSFT_nxOMSPerfCounterResource_props[] =
 {
     &MSFT_nxOMSPerfCounterResource_Name_prop,
+    &MSFT_nxOMSPerfCounterResource_WorkspaceID_prop,
     &MSFT_nxOMSPerfCounterResource_HeartbeatIntervalSeconds_prop,
     &MSFT_nxOMSPerfCounterResource_PerfCounterObject_prop,
 };
@@ -1891,7 +1924,7 @@ static MI_CONST MI_Qualifier MSFT_nxOMSPerfCounterResource_Description_qual =
     &MSFT_nxOMSPerfCounterResource_Description_qual_value
 };
 
-static MI_CONST MI_Char* MSFT_nxOMSPerfCounterResource_ClassVersion_qual_value = MI_T("1.1.0");
+static MI_CONST MI_Char* MSFT_nxOMSPerfCounterResource_ClassVersion_qual_value = MI_T("2.0.0");
 
 static MI_CONST MI_Qualifier MSFT_nxOMSPerfCounterResource_ClassVersion_qual =
 {
