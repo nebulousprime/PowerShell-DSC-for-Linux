@@ -30,8 +30,8 @@ MI_EXTERN_C MI_Module* MI_MAIN_CALL MI_Main(_In_ MI_Server* server);
 HINSTANCE g_hModule = NULL;
 
 // Unique provider ID
-// {192489FF-21D4-47EA-948A-00823E0FCA0F}
-CLSID g_providerClassID = { 0x192489ff, 0x21d4, 0x47ea, { 0x94, 0x8a, 0x00, 0x82, 0x3e, 0x0f, 0xca, 0x0f } };
+// {12057443-5BB2-40B5-9755-0350CA937088}
+CLSID g_providerClassID = { 0x12057443, 0x5bb2, 0x40b5, { 0x97, 0x55, 0x03, 0x50, 0xca, 0x93, 0x70, 0x88 } };
 
 // DllMain is needed to get the module handle for registration.
 EXTERN_C BOOL WINAPI DllMain(_In_ HINSTANCE hInstance,
