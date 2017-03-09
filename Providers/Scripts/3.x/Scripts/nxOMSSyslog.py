@@ -20,6 +20,7 @@ sysklog_conf_path='/etc/syslog.conf'
 oms_syslog_ng_conf_path = '/etc/opt/omi/conf/omsconfig/syslog-ng-oms.conf'
 oms_rsyslog_conf_path = '/etc/opt/omi/conf/omsconfig/rsyslog-oms.conf'
 conf_path = ''
+multi_homed = None
 
 
 def init_vars(SyslogSource, WorkspaceID):
@@ -39,12 +40,14 @@ def init_vars(SyslogSource, WorkspaceID):
         raise Exception('Unable to find OMS config files.')
     LG().Log('INFO', 'Config file is ' + conf_path + '.')
 
+    multi_homed = os.path.isdir('/etc/opt/microsoft/omsagent/' + WorkspaceID + '/conf')
+
 
 def Set_Marshall(SyslogSource, WorkspaceID):
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return [0]
-    init_vars(SyslogSource, WorkspaceID)
+    init_vars(SyslogSource)
     retval = Set(SyslogSource, WorkspaceID)
     if retval is False:
         retval = [-1]
@@ -57,7 +60,7 @@ def Test_Marshall(SyslogSource, WorkspaceID):
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return [0]
-    init_vars(SyslogSource, WorkspaceID)
+    init_vars(SyslogSource)
     return Test(SyslogSource, WorkspaceID)
 
 
@@ -66,15 +69,15 @@ def Get_Marshall(SyslogSource, WorkspaceID):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return 0, {'SyslogSource':protocol.MI_InstanceA([])}
     arg_names = list(locals().keys())
-    init_vars(SyslogSource, WorkspaceID) # TODO resolve; we can assume here that WorkspaceID has value like SyslogSource does and nxPackage uses things here https://github.com/Microsoft/PowerShell-DSC-for-Linux/blob/master/Providers/Scripts/2.6x-2.7x/Scripts/nxPackage.py#L348
+    init_vars(SyslogSource) # TODO resolve; we can assume here that WorkspaceID has value like SyslogSource does and nxPackage uses things here https://github.com/Microsoft/PowerShell-DSC-for-Linux/blob/master/Providers/Scripts/2.6x-2.7x/Scripts/nxPackage.py#L348
     retval = 0
-    NewSource, NewWorkspaceID = Get(SyslogSource, WorkspaceID)
+    NewSource = Get(SyslogSource, WorkspaceID)
     for source in NewSource:
         if source['Severities'] is not None:
             source['Severities'] = protocol.MI_StringA(source['Severities'])
         source['Facility'] = protocol.MI_String(source['Facility'])
     SyslogSource = protocol.MI_InstanceA(NewSource)
-    WorkspaceID = protocol.MI_String(NewWorkspaceID)
+    WorkspaceID = protocol.MI_String(WorkspaceID)
     retd = {}
     ld = locals()
     for k in arg_names:
@@ -98,13 +101,10 @@ def Set(SyslogSource, WorkspaceID):
 
 def Test(SyslogSource, WorkspaceID):
     if conf_path == oms_syslog_ng_conf_path:
-        NewSource, NewWorkspaceID = ReadSyslogNGConf(SyslogSource, WorkspaceID)
+        NewSource = ReadSyslogNGConf(SyslogSource, WorkspaceID)
     else:
-        NewSource, NewWorkspaceID = ReadSyslogConf(SyslogSource, WorkspaceID)
-    # TODO figure out how to test workspace id given that we may be able to extract it from omsagent.conf
+        NewSource = ReadSyslogConf(SyslogSource, WorkspaceID)
     # TODO also figure out if I should be parsing the syslogconf any differently
-    if WorkspaceID != NewWorkspaceID:
-        return [-1]
     SyslogSource=sorted(SyslogSource, key=lambda k: k['Facility'])
     for d in SyslogSource:
         found = False
@@ -121,17 +121,46 @@ def Test(SyslogSource, WorkspaceID):
 
 def Get(SyslogSource, WorkspaceID):
     if conf_path == oms_syslog_ng_conf_path:
-        NewSource, NewWorkspaceID = ReadSyslogNGConf(SyslogSource, WorkspaceID)
+        NewSource = ReadSyslogNGConf(SyslogSource, WorkspaceID)
     else:
-        NewSource, NewWorkspaceID = ReadSyslogConf(SyslogSource, WorkspaceID)
+        NewSource = ReadSyslogConf(SyslogSource, WorkspaceID)
     for d in NewSource:
         if d['Severities'] == ['none']:
             d['Severities'] = []
-    return NewSource, NewWorkspaceID
+    return NewSource
+
+
+def ParseSyslogConf(txt):
+    facility_search = r'^(.*?)@.*?25224$'
+    facility_re = re.compile(facility_search, re.M)
+    return facility_re.findall(txt)
+
+
+def ParseSyslogConfMultiHomed(txt, WorkspaceID):
+    # For corner cases, we'll check that the file is of the format we expect
+    header_str = '# OMS Syslog collection for workspace ' + WorkspaceID
+    header_search = r'^' + header_str + '$'
+    header_re = re.compile(header_search, re.M)
+    mh_header = header_re.search(txt)
+
+    if mh_header is None: # the expected multi-homing header was not found
+        return ParseSyslogConf(txt)
+
+    # Max number of facility/severity combos: 8 levels * 19 facilities = 152
+    workspace_search = r'^' + header_str + '\n((.*@[0-9\.\:]*\n){1,160})'
+    workspace_re = re.compile(workspace_search, re.M)
+    workspace_facilities = workspace_re.search(txt)
+
+    if workspace_facilities is None:
+        return []
+
+    facilities_str = workspace_facilities.group(1)
+    facility_search = r'^(.*?)@[0-9\.\:]*$'
+    facility_re = re.compile(facility_search, re.M)
+    return facility_re.findall(facilities_str)
 
 
 def ReadSyslogConf(SyslogSource, WorkspaceID):
-    # TODO find the right section in the conf for the WorkspaceID and return it
     out = []
     txt = ''
     if len(SyslogSource) == 0:
@@ -152,14 +181,13 @@ def ReadSyslogConf(SyslogSource, WorkspaceID):
         except:
             LG().Log('ERROR', 'Unable to read ' + src_conf_path + '.')
             return out
-    workspace = str(WorkspaceID)  # should match regex ([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})
-    workspace_search = r'^# OMS Syslog collection for workspace (' + workspace + ')\n(.*@[0-9\.\:]*\n){1,20}$'
-    facility_search = r'
-# TODO working idea: r'^# OMS Syslog collection for workspace ([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\n((.*?)@[0-9\.\:]*\n){1,20}'
-    workspace_re = re.compile(workspace_search, re.M)
-    facility_search = r'^(.*?)@.*?25224$' #TODO change this to be more dynamic, because we can't assume that the primary workspace hasn't been removed and 25224 is freed
-    facility_re = re.compile(facility_search, re.M)
-    for line in facility_re.findall(txt):
+
+    if multi_homed:
+        lines = ParseSyslogConfMultiHomed(txt, WorkspaceID)
+    else:
+        lines = ParseSyslogConf(txt)
+
+    for line in lines:
         l = line.replace('=', '')
         l = l.replace('\t', '').split(';')
         sevs = []
@@ -167,11 +195,10 @@ def ReadSyslogConf(SyslogSource, WorkspaceID):
         for sev in l:
             sevs.append(sev.split('.')[1])
         out.append({'Facility': fac, 'Severities': sevs})
-    return out  # TODO return workspaceID as well (format? type?)
+    return out
 
 
 def UpdateSyslogConf(SyslogSource, WorkspaceID): #TODO update this to write in the workspace ID
-    # TODO: If this configuration is (conceptually) getting passed from the workspace to the agent, then I'm only going to have a single workspace ID to deal with
     # TODO: Find my workspace ID in the conf file and ONLY replace that section of the conf in this method
     arg = ''
     if 'rsyslog' in conf_path:
@@ -185,6 +212,8 @@ def UpdateSyslogConf(SyslogSource, WorkspaceID): #TODO update this to write in t
                     'INFO', 'Successfully read ' + rsyslog_conf_path + '.')
             except:
                 LG().Log('ERROR', 'Unable to read ' + rsyslog_conf_path + '.')
+
+    # TODO HERE must figure out how to parse this
     facility_search = r'(#facility.*?\n.*?25224\n)|(^[^#].*?25224\n)'
     facility_re = re.compile(facility_search, re.M)
     for t in facility_re.findall(txt):
@@ -232,7 +261,7 @@ def ReadSyslogNGConf(SyslogSource, WorkspaceID):
             else:
                 sevs.append(s[1])
         out.append({'Facility': s[0], 'Severities': sevs})
-    return out  # TODO update to return WorkspaceID as well (format? type?)
+    return out
 
 
 def UpdateSyslogNGConf(SyslogSource, WorkspaceID):
