@@ -56,8 +56,10 @@ def Set_Marshall(SyslogSource, WorkspaceID):
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return [0]
+
     init_vars(SyslogSource, WorkspaceID)
     retval = Set(SyslogSource, WorkspaceID)
+
     if retval is False:
         retval = [-1]
     else:
@@ -72,6 +74,7 @@ def Test_Marshall(SyslogSource, WorkspaceID):
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return [0]
+
     init_vars(SyslogSource, WorkspaceID)
     return Test(SyslogSource, WorkspaceID)
 
@@ -84,6 +87,7 @@ def Get_Marshall(SyslogSource, WorkspaceID):
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return 0, {'SyslogSource':protocol.MI_InstanceA([])}
+
     arg_names = list(locals().keys())
     init_vars(SyslogSource, WorkspaceID)
     retval = 0
@@ -94,6 +98,7 @@ def Get_Marshall(SyslogSource, WorkspaceID):
         source['Facility'] = protocol.MI_String(source['Facility'])
     SyslogSource = protocol.MI_InstanceA(NewSource)
     WorkspaceID = protocol.MI_String(WorkspaceID)
+
     retd = {}
     ld = locals()
     for k in arg_names:
@@ -107,10 +112,12 @@ def Set(SyslogSource, WorkspaceID):
     """
     if Test(SyslogSource, WorkspaceID) == [0]:
         return [0]
+
     if conf_path == oms_syslog_ng_conf_path:
         ret = UpdateSyslogNGConf(SyslogSource, WorkspaceID)
     else:
         ret = UpdateSyslogConf(SyslogSource, WorkspaceID)
+
     if ret:
         ret = [0]
     else:
@@ -126,14 +133,15 @@ def Test(SyslogSource, WorkspaceID):
         NewSource = ReadSyslogNGConf(SyslogSource, WorkspaceID)
     else:
         NewSource = ReadSyslogConf(SyslogSource, WorkspaceID)
-    # TODO also figure out if I should be parsing the syslogconf any differently
+
     SyslogSource=sorted(SyslogSource, key=lambda k: k['Facility'])
     for d in SyslogSource:
         found = False
         if 'Severities' not in d.keys() or d['Severities'] is None or len(d['Severities']) is 0:
-            d['Severities'] = ['none']  # redundant?
+            d['Severities'] = ['none']
         d['Severities'].sort()
     NewSource=sorted(NewSource, key=lambda k: k['Facility'])
+
     for n in NewSource:
         n['Severities'].sort()
     if SyslogSource != NewSource:
@@ -149,6 +157,7 @@ def Get(SyslogSource, WorkspaceID):
         NewSource = ReadSyslogNGConf(SyslogSource, WorkspaceID)
     else:
         NewSource = ReadSyslogConf(SyslogSource, WorkspaceID)
+
     for d in NewSource:
         if d['Severities'] == ['none']:
             d['Severities'] = []
@@ -216,7 +225,28 @@ def UpdateSyslogConf(SyslogSource, WorkspaceID):
             except:
                 LG().Log('ERROR', 'Unable to read ' + rsyslog_conf_path + '.')
 
-    # TODO HERE must figure out how to parse this
+    # TODO idea: save the entire text file in varZ (txt)
+    workspace_section = txt
+    if multi_homed:
+        workspace_section = ExtractSyslogConfSectionForWorkspace(txt, WorkspaceID)
+    new_workspace_section = workspace_section
+    #            Get a regex for the whole workspace-specific section in the file like I have in ParseSyslogConfMultiHomed - save this section as is in varA (workspace_section) and make a copy in varB (new_workspace_section)
+
+    #            Extract the port used for this workspace from varB (saved in port)
+    port_search = r'^.*@[0-9\.]*:([0-9]*)$'
+    port_re = re.compile(port_search, re.M)
+    port = port_re.search(workspace_section).group(1)
+
+    # TODO HERE
+
+
+    #            Run the above (or similar) for loop on varB to get rid of the previous conf
+    #            Add each new facility/severity with the extracted port to the end of varB
+    #            Replace the old section (varA) with the newly formed section (varB) in the whole conf file (varZ/txt)
+    #            Write the new complete conf file (varZ/txt) to the configuration file
+
+    
+
     # TODO Idea: If I just get this to take into account the workspace ID, I can find the section with just my workspace ID lines and replace only those.
     facility_search = r'(#facility.*?\n.*?25224\n)|(^[^#].*?25224\n)'
     facility_re = re.compile(facility_search, re.M)
@@ -226,13 +256,7 @@ def UpdateSyslogConf(SyslogSource, WorkspaceID):
             txt = txt.replace(r, '')
 
     # however, this for loop just appends my facility lines to the end of the file. I think I want to add them to the same section they were in before
-    # TODO idea: save the entire text file in varZ
-    #            Get a regex for the whole workspace-specific section in the file like I have in ParseSyslogConfMultiHomed - save this section as is in varA and make a copy in varB
-    #            Extract the port used for this workspace from varB
-    #            Run the above (or similar) for loop on varB to get rid of the previous conf
-    #            Add each new facility/severity with the extracted port to the end of varB
-    #            Replace the old section (varA) with the newly formed section (varB) in the whole conf file (varZ)
-    #            Write the new complete conf file (varZ) to the configuration file
+
     for d in SyslogSource:
         facility_txt = '#facility = ' + d['Facility'] + '\n'
         for s in d['Severities']:
@@ -270,6 +294,7 @@ def ReadSyslogNGConf(SyslogSource, WorkspaceID):
     except:
         LG().Log('ERROR', 'Unable to read ' + syslog_ng_conf_path + '.')
         return out
+
     facility_search = r'^filter f_(?P<facility>.*?)_oms.*?level\((?P<severities>.*?)\)'
     facility_re = re.compile(facility_search, re.M)
     for s in facility_re.findall(txt):
@@ -296,6 +321,7 @@ def UpdateSyslogNGConf(SyslogSource, WorkspaceID):
     except:
         LG().Log('ERROR', 'Unable to read ' + syslog_ng_conf_path + '.')
         return False
+
     facility_search = r'(\n+)?(#OMS_Destination.*?25224.*?\n)?(\n)?(#OMS_facility.*?filter.*?_oms.*?log.*destination.*?\n)'
     facility_re = re.compile(facility_search, re.M | re.S)
     txt = facility_re.sub('', txt)
@@ -313,6 +339,7 @@ def UpdateSyslogNGConf(SyslogSource, WorkspaceID):
             facility_txt += 'log { source(src); filter(f_' + d[
                 'Facility'] + '_oms); destination(d_oms); };\n'
             txt += facility_txt
+
     try:
         codecs.open(conf_path, 'w', 'utf8').write(txt)
         LG().Log(
@@ -321,11 +348,13 @@ def UpdateSyslogNGConf(SyslogSource, WorkspaceID):
         LG().Log(
             'ERROR', 'Unable to create omsagent syslog-ng configuration at ' + conf_path + '.')
         return False
+
     if os.system('sudo /opt/microsoft/omsconfig/Scripts/OMSSyslog-ng.post.sh') == 0:
         LG().Log('INFO', 'Successfully executed OMSSyslog-ng.post.sh.')
     else:
         LG().Log('ERROR', 'Error executing OMSSyslog-ng.post.sh.')
         return False
+
     return True
 
 
