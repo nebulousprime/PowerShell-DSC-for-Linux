@@ -24,6 +24,9 @@ multi_homed = None
 
 
 def init_vars(SyslogSource, WorkspaceID):
+    """
+    Initialize global variables for this resource
+    """
     global conf_path
     global multi_homed
 
@@ -47,6 +50,9 @@ def init_vars(SyslogSource, WorkspaceID):
 
 
 def Set_Marshall(SyslogSource, WorkspaceID):
+    """
+    Set the syslog conf for specified workspace on the machine
+    """
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return [0]
@@ -60,6 +66,9 @@ def Set_Marshall(SyslogSource, WorkspaceID):
 
 
 def Test_Marshall(SyslogSource, WorkspaceID):
+    """
+    Test if the syslog conf for specified workspace matches the provided conf
+    """
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return [0]
@@ -68,6 +77,10 @@ def Test_Marshall(SyslogSource, WorkspaceID):
 
 
 def Get_Marshall(SyslogSource, WorkspaceID):
+    """
+    Get the syslog conf for specified workspace from the machine and update
+    the parameters
+    """
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return 0, {'SyslogSource':protocol.MI_InstanceA([])}
@@ -89,6 +102,9 @@ def Get_Marshall(SyslogSource, WorkspaceID):
 
 
 def Set(SyslogSource, WorkspaceID):
+    """
+    Set the syslog conf for specified workspace on the machine
+    """
     if Test(SyslogSource, WorkspaceID) == [0]:
         return [0]
     if conf_path == oms_syslog_ng_conf_path:
@@ -103,6 +119,9 @@ def Set(SyslogSource, WorkspaceID):
 
 
 def Test(SyslogSource, WorkspaceID):
+    """
+    Test if the syslog conf for specified workspace matches the provided conf
+    """
     if conf_path == oms_syslog_ng_conf_path:
         NewSource = ReadSyslogNGConf(SyslogSource, WorkspaceID)
     else:
@@ -123,6 +142,9 @@ def Test(SyslogSource, WorkspaceID):
 
 
 def Get(SyslogSource, WorkspaceID):
+    """
+    Get the syslog conf for specified workspace from the machine
+    """
     if conf_path == oms_syslog_ng_conf_path:
         NewSource = ReadSyslogNGConf(SyslogSource, WorkspaceID)
     else:
@@ -133,37 +155,11 @@ def Get(SyslogSource, WorkspaceID):
     return NewSource
 
 
-def ParseSyslogConf(txt):
-    facility_search = r'^(.*?)@.*?25224$'
-    facility_re = re.compile(facility_search, re.M)
-    return facility_re.findall(txt)
-
-
-def ParseSyslogConfMultiHomed(txt, WorkspaceID):
-    # For corner cases, we'll check that the file is of the format we expect
-    header_str = '# OMS Syslog collection for workspace ' + WorkspaceID
-    header_search = r'^' + header_str + '$'
-    header_re = re.compile(header_search, re.M)
-    mh_header = header_re.search(txt)
-
-    if mh_header is None: # the expected multi-homing header was not found
-        return ParseSyslogConf(txt)
-
-    # Max number of facility/severity combos: 8 levels * 19 facilities = 152
-    workspace_search = r'^' + header_str + '\n((.*@[0-9\.\:]*\n){1,160})'
-    workspace_re = re.compile(workspace_search, re.M)
-    workspace_facilities = workspace_re.search(txt)
-
-    if workspace_facilities is None:
-        return []
-
-    facilities_str = workspace_facilities.group(1)
-    facility_search = r'^(.*?)@[0-9\.\:]*$'
-    facility_re = re.compile(facility_search, re.M)
-    return facility_re.findall(facilities_str)
-
-
 def ReadSyslogConf(SyslogSource, WorkspaceID):
+    """
+    Read syslog conf file in rsyslog format for specified workspace and
+    return the relevant facilities and severities
+    """
     out = []
     txt = ''
     if len(SyslogSource) == 0:
@@ -202,6 +198,10 @@ def ReadSyslogConf(SyslogSource, WorkspaceID):
 
 
 def UpdateSyslogConf(SyslogSource, WorkspaceID):
+    """
+    Update syslog conf file in rsyslog format with specified facilities and
+    severities for the specified workspace
+    """
     # TODO: Find my workspace ID in the conf file and ONLY replace that section of the conf in this method
     arg = ''
     if 'rsyslog' in conf_path:
@@ -257,6 +257,10 @@ def UpdateSyslogConf(SyslogSource, WorkspaceID):
 
 
 def ReadSyslogNGConf(SyslogSource, WorkspaceID):
+    """
+    Read syslog conf file in syslog-ng format for specified workspace and
+    return the relevant facilities and severities
+    """
     #TODO
     out = []
     txt = ''
@@ -280,6 +284,10 @@ def ReadSyslogNGConf(SyslogSource, WorkspaceID):
 
 
 def UpdateSyslogNGConf(SyslogSource, WorkspaceID):
+    """
+    Update syslog conf file in syslog-ng format with specified facilities and
+    severities for the specified workspace
+    """
     #TODO make sure that facility is no longer determined by the filter/destination labels
     txt = ''
     try:
@@ -319,3 +327,65 @@ def UpdateSyslogNGConf(SyslogSource, WorkspaceID):
         LG().Log('ERROR', 'Error executing OMSSyslog-ng.post.sh.')
         return False
     return True
+
+
+def ParseSyslogConf(txt):
+    """
+    Returns an array of the facilities and severities for the default workspace
+    in this format: ['kern.warning\t', 'user.warning\t']
+    """
+    facility_search = r'^(.*?)@.*?25224$'
+    facility_re = re.compile(facility_search, re.M)
+    return facility_re.findall(txt)
+
+
+def ParseSyslogConfMultiHomed(txt, WorkspaceID):
+    """
+    Returns an array of the facilities and severities for the specified
+    workspace in this format: ['kern.warning\t', 'user.warning\t']
+    """
+    search = SearchSyslogConfMultiHomed(txt, WorkspaceID)
+    if search is -1:
+        return ParseSyslogConf(txt)
+    elif search is None:
+        return []
+
+    facilities_str = search.group(1)
+    facility_search = r'^(.*?)@[0-9\.\:]*$'
+    facility_re = re.compile(facility_search, re.M)
+    return facility_re.findall(facilities_str)
+
+
+def ExtractSyslogConfSectionForWorkspace(txt, WorkspaceID):
+    """
+    Returns a string containing only the section of txt that applies to the
+    workspace specified by WorkspaceID
+    """
+    search = SearchSyslogConfMultiHomed(txt, WorkspaceID)
+    if search is None:
+        return ''
+    else:
+        return search.group()
+
+
+def SearchSyslogConfMultiHomed(txt, WorkspaceID):
+    """
+    Search txt in rsyslog format for multi-homed section labelled with
+    the provided WorkspaceID
+    """
+    header_str = '# OMS Syslog collection for workspace ' + WorkspaceID
+    header_search = r'^' + header_str + '$'
+    header_re = re.compile(header_search, re.M)
+    mh_header = header_re.search(txt)
+
+    if mh_header is None: # the expected multi-homing header was not found
+        LG().Log('ERROR', 'Expected multi-homing header was not found in syslog conf')
+        return -1
+
+    # Max number of facility/severity combos: 8 levels * 19 facilities = 152
+    workspace_search = r'^' + header_str + '\n((.*@[0-9\.\:]*\n){1,160})'
+    workspace_re = re.compile(workspace_search, re.M)
+    return workspace_re.search(txt)
+
+    # Here, ret.group() contains the header_str and all facilities and severities for a single workspace's section in the syslog conf file
+    # Idea: this can be extracted into a method for UpdateSyslogConf to also work with
