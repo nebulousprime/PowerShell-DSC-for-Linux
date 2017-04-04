@@ -211,7 +211,6 @@ def UpdateSyslogConf(SyslogSource, WorkspaceID):
     Update syslog conf file in rsyslog format with specified facilities and
     severities for the specified workspace
     """
-    # TODO: Find my workspace ID in the conf file and ONLY replace that section of the conf in this method
     arg = ''
     if 'rsyslog' in conf_path:
         if os.path.exists('/etc/rsyslog.d'):
@@ -225,45 +224,35 @@ def UpdateSyslogConf(SyslogSource, WorkspaceID):
             except:
                 LG().Log('ERROR', 'Unable to read ' + rsyslog_conf_path + '.')
 
-    # TODO idea: save the entire text file in varZ (txt)
     workspace_section = txt
     if multi_homed:
         workspace_section = ExtractSyslogConfSectionForWorkspace(txt, WorkspaceID)
     new_workspace_section = workspace_section
-    #            Get a regex for the whole workspace-specific section in the file like I have in ParseSyslogConfMultiHomed - save this section as is in varA (workspace_section) and make a copy in varB (new_workspace_section)
 
-    #            Extract the port used for this workspace from varB (saved in port)
     port_search = r'^.*@[0-9\.]*:([0-9]*)$'
     port_re = re.compile(port_search, re.M)
     port = port_re.search(workspace_section).group(1)
 
-    # TODO HERE
-
-
-    #            Run the above (or similar) for loop on varB to get rid of the previous conf
-    #            Add each new facility/severity with the extracted port to the end of varB
-    #            Replace the old section (varA) with the newly formed section (varB) in the whole conf file (varZ/txt)
-    #            Write the new complete conf file (varZ/txt) to the configuration file
-
-    
-
-    # TODO Idea: If I just get this to take into account the workspace ID, I can find the section with just my workspace ID lines and replace only those.
-    facility_search = r'(#facility.*?\n.*?25224\n)|(^[^#].*?25224\n)'
+    # Remove every line in the section that gives a facility, severity, and port
+    facility_search = r'(#facility.*?\n.*?' + port + '\n)|(^[^#].*?' + port + '\n)'
     facility_re = re.compile(facility_search, re.M)
-    # This nexted for loop replaces every line that gives a facility, warning, and port
-    for t in facility_re.findall(txt):
+    for t in facility_re.findall(new_workspace_section):
         for r in t:
-            txt = txt.replace(r, '')
+            new_workspace_section = new_workspace_section.replace(r, '')
 
-    # however, this for loop just appends my facility lines to the end of the file. I think I want to add them to the same section they were in before
-
+    # Add each new facility/severity with the extracted port to the updated section
     for d in SyslogSource:
         facility_txt = '#facility = ' + d['Facility'] + '\n'
         for s in d['Severities']:
             facility_txt += d['Facility'] + '.=' + s + ';'
-        facility_txt = facility_txt[0:-1] + '\t@127.0.0.1:25224\n'
-        txt += facility_txt
+        facility_txt = facility_txt[0:-1] + '\t@127.0.0.1:' + port + '\n'
+        new_workspace_section += facility_txt
 
+    # Replace the old section with the newly formed section in the conf file
+#    section_search = CreateSearchSyslogMultiHomed(WorkspaceID)
+    txt.replace(workspace_section, new_workspace_section)
+
+    # Write the new complete txt to the conf file
     try:
         codecs.open(conf_path, 'w', 'utf8').write(txt)
         LG().Log(
@@ -397,12 +386,14 @@ def ExtractSyslogConfSectionForWorkspace(txt, WorkspaceID):
         return search.group()
 
 
-def SearchSyslogConfMultiHomed(txt, WorkspaceID):
+def SearchSyslogConfMultiHomed(txt, WorkspaceID, replace_text = None):
     """
     Search txt in rsyslog format for multi-homed section labelled with
     the provided WorkspaceID
+    If replace_text is specified, then the section in txt will be replaced
+    with replace_text and the updated txt will be returned
     """
-    header_str = '# OMS Syslog collection for workspace ' + WorkspaceID
+    header_str = GetSyslogConfMultiHomedHeaderString(WorkspaceID)
     header_search = r'^' + header_str + '$'
     header_re = re.compile(header_search, re.M)
     mh_header = header_re.search(txt)
@@ -411,10 +402,24 @@ def SearchSyslogConfMultiHomed(txt, WorkspaceID):
         LG().Log('ERROR', 'Expected multi-homing header was not found in syslog conf')
         return -1
 
+    workspace_re = CreateSearchSyslogMultiHomed(WorkspaceID)
+    workspace_facilities = workspace_re.search(txt)
+    return workspace_facilities
+
+
+def CreateSearchSyslogMultiHomed(WorkspaceID):
+    """
+    Create a regex search over an rsyslog conf file for the multi-homed section
+    labelled with the provided WorkspaceID
+    """
+    header_str = GetSyslogConfMultiHomedHeaderString(WorkspaceID)
     # Max number of facility/severity combos: 8 levels * 19 facilities = 152
     workspace_search = r'^' + header_str + '\n((.*@[0-9\.\:]*\n){1,160})'
-    workspace_re = re.compile(workspace_search, re.M)
-    return workspace_re.search(txt)
+    return re.compile(workspace_search, re.M)
 
-    # Here, ret.group() contains the header_str and all facilities and severities for a single workspace's section in the syslog conf file
-    # Idea: this can be extracted into a method for UpdateSyslogConf to also work with
+
+def GetSyslogConfMultiHomedHeaderString(WorkspaceID):
+    """
+    Return the header for the multi-homed section from an rsyslog conf file
+    """
+    return '# OMS Syslog collection for workspace ' + WorkspaceID
