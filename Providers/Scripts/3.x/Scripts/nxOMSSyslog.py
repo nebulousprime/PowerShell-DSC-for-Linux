@@ -50,7 +50,7 @@ def Set_Marshall(SyslogSource, WorkspaceID):
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return [0]
-    init_vars(SyslogSource)
+    init_vars(SyslogSource, WorkspaceID)
     retval = Set(SyslogSource, WorkspaceID)
     if retval is False:
         retval = [-1]
@@ -63,7 +63,7 @@ def Test_Marshall(SyslogSource, WorkspaceID):
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return [0]
-    init_vars(SyslogSource)
+    init_vars(SyslogSource, WorkspaceID)
     return Test(SyslogSource, WorkspaceID)
 
 
@@ -72,7 +72,7 @@ def Get_Marshall(SyslogSource, WorkspaceID):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return 0, {'SyslogSource':protocol.MI_InstanceA([])}
     arg_names = list(locals().keys())
-    init_vars(SyslogSource) # TODO resolve; we can assume here that WorkspaceID has value like SyslogSource does and nxPackage uses things here https://github.com/Microsoft/PowerShell-DSC-for-Linux/blob/master/Providers/Scripts/2.6x-2.7x/Scripts/nxPackage.py#L348
+    init_vars(SyslogSource, WorkspaceID)
     retval = 0
     NewSource = Get(SyslogSource, WorkspaceID)
     for source in NewSource:
@@ -201,7 +201,7 @@ def ReadSyslogConf(SyslogSource, WorkspaceID):
     return out
 
 
-def UpdateSyslogConf(SyslogSource, WorkspaceID): #TODO update this to write in the workspace ID
+def UpdateSyslogConf(SyslogSource, WorkspaceID):
     # TODO: Find my workspace ID in the conf file and ONLY replace that section of the conf in this method
     arg = ''
     if 'rsyslog' in conf_path:
@@ -217,17 +217,29 @@ def UpdateSyslogConf(SyslogSource, WorkspaceID): #TODO update this to write in t
                 LG().Log('ERROR', 'Unable to read ' + rsyslog_conf_path + '.')
 
     # TODO HERE must figure out how to parse this
+    # TODO Idea: If I just get this to take into account the workspace ID, I can find the section with just my workspace ID lines and replace only those.
     facility_search = r'(#facility.*?\n.*?25224\n)|(^[^#].*?25224\n)'
     facility_re = re.compile(facility_search, re.M)
+    # This nexted for loop replaces every line that gives a facility, warning, and port
     for t in facility_re.findall(txt):
         for r in t:
             txt = txt.replace(r, '')
+
+    # however, this for loop just appends my facility lines to the end of the file. I think I want to add them to the same section they were in before
+    # TODO idea: save the entire text file in varZ
+    #            Get a regex for the whole workspace-specific section in the file like I have in ParseSyslogConfMultiHomed - save this section as is in varA and make a copy in varB
+    #            Extract the port used for this workspace from varB
+    #            Run the above (or similar) for loop on varB to get rid of the previous conf
+    #            Add each new facility/severity with the extracted port to the end of varB
+    #            Replace the old section (varA) with the newly formed section (varB) in the whole conf file (varZ)
+    #            Write the new complete conf file (varZ) to the configuration file
     for d in SyslogSource:
         facility_txt = '#facility = ' + d['Facility'] + '\n'
         for s in d['Severities']:
             facility_txt += d['Facility'] + '.=' + s + ';'
         facility_txt = facility_txt[0:-1] + '\t@127.0.0.1:25224\n'
         txt += facility_txt
+
     try:
         codecs.open(conf_path, 'w', 'utf8').write(txt)
         LG().Log(
@@ -268,7 +280,7 @@ def ReadSyslogNGConf(SyslogSource, WorkspaceID):
 
 
 def UpdateSyslogNGConf(SyslogSource, WorkspaceID):
-    #TODO
+    #TODO make sure that facility is no longer determined by the filter/destination labels
     txt = ''
     try:
         txt = codecs.open(syslog_ng_conf_path, 'r', 'utf8').read()
