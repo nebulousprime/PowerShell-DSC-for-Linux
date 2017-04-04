@@ -25,6 +25,8 @@ multi_homed = None
 
 def init_vars(SyslogSource, WorkspaceID):
     global conf_path
+    global multi_homed
+
     for source in SyslogSource:
         if source['Severities'] is not None:
             if 'value' in dir(source['Severities']):
@@ -40,7 +42,8 @@ def init_vars(SyslogSource, WorkspaceID):
         raise Exception('Unable to find OMS config files.')
     LG().Log('INFO', 'Config file is ' + conf_path + '.')
 
-    multi_homed = os.path.isdir('/etc/opt/microsoft/omsagent/' + WorkspaceID + '/conf')
+    omsagent_dir = '/etc/opt/microsoft/omsagent/'
+    multi_homed = os.path.isdir(omsagent_dir + WorkspaceID + '/conf')
 
 
 def Set_Marshall(SyslogSource, WorkspaceID):
