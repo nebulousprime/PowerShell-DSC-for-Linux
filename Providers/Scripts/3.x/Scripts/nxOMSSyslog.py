@@ -303,6 +303,9 @@ def UpdateSyslogNGConf(SyslogSource, WorkspaceID):
     severities for the specified workspace
     """
     #TODO make sure that facility is no longer determined by the filter/destination labels
+    # the DSC path file is written to and then one of our scripts is called to update
+    # the actual syslog-ng service file; since all the resource scripts should be
+    # executed serially, I think I can just append to the end of the file, though I should make sure there's only a single d_WORKSPACEID_oms for each workspce
     txt = ''
     try:
         txt = codecs.open(syslog_ng_conf_path, 'r', 'utf8').read()
