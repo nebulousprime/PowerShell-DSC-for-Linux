@@ -2,12 +2,18 @@
 import os
 import sys
 
-conf_path = "/etc/opt/microsoft/omsagent/conf/omsadmin.conf"
+#conf_path = "/etc/opt/microsoft/omsagent/conf/omsadmin.conf"
+omsagent_path = "/etc/opt/microsoft/omsagent/"
 metamof_path = "/etc/opt/omi/conf/omsconfig/generated_meta_config.mof"
 agentid_path = "/etc/opt/omi/conf/omsconfig/agentid"
 omshelper_disable_path = "/etc/opt/omi/conf/omsconfig/omshelper_disable"
 
-def generate_meta_mof(serverurl):
+#def generate_meta_mof(serverurl):
+def generate_partial_config(serverurls):
+    """
+    serverurls: An array of strings, each a server URL
+    TODO
+    """
     return """
 instance of MSFT_WebDownloadManager as $MSFT_WebDownloadManager1ref
 {
@@ -66,6 +72,9 @@ instance of OMI_ConfigurationDocument
 
 
 def generate_push_meta_mof():
+    """
+    TODO: do I need to change the format of this?
+    """
     return """
 instance of MSFT_DSCMetaConfiguration as $MSFT_DSCMetaConfiguration1ref
 {
@@ -146,9 +155,12 @@ if disable_flag == True:
 
 if not os.path.isfile(omshelper_disable_path):
     # source the omsadmin conf file and get the key/value pairs
+    # TODO source all valid omsadmin.conf files (use regex? or uuid?)
+    # If any version of python may be running, then I should use regex
     keyvals = source_file(conf_path)
     
     # Looking for DSC_ENDPOINT and AGENT_GUID
+    # TODO also extract workspace ID from this file to use in param-setting
 
     if "DSC_ENDPOINT" not in keyvals or "AGENT_GUID" not in keyvals:
         print("Error: Unable to find needed key/value pairs in " + conf_path)
